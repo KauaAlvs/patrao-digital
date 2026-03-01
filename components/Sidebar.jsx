@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
-import { requestForToken } from '../lib/firebase'; // IMPORTAÇÃO DO MOTOR DE NOTIFICAÇÕES
+import { requestForToken } from '../lib/firebase'; 
 
 const swalDark = Swal.mixin({
   background: '#1e1e1e', color: '#ffffff', confirmButtonColor: '#0070f3', cancelButtonColor: '#444',
@@ -19,14 +19,14 @@ export default function Sidebar() {
   // Estados dos Modais Globais
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false); 
-  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false); // Novo modal do sino
+  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false); 
   
   const [activeTab, setActiveTab] = useState('activity'); 
   const [goalType, setGoalType] = useState('routine');
   const [contexts, setContexts] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Estado das notificações (para salvar na tabela futura do banco)
+  // Estado das notificações
   const [pushEnabled, setPushEnabled] = useState(false);
   const [notificationsList, setNotificationsList] = useState([]);
 
@@ -60,22 +60,32 @@ export default function Sidebar() {
     }
   };
 
-  // === SISTEMA DE ATIVAÇÃO DE NOTIFICAÇÕES (FIREBASE) ===
+  // === SISTEMA DE ATIVAÇÃO E SALVAMENTO DE NOTIFICAÇÕES ===
   const handleEnablePush = async () => {
     if (pushEnabled) {
-      swalDark.fire('Já Ativado!', 'Você já está recebendo alertas.', 'info');
+      swalDark.fire('Já Ativado!', 'Você já está recebendo alertas neste dispositivo.', 'info');
       return;
     }
     
+    // 1. Pede a permissão e gera o token no Google
     const token = await requestForToken();
     
     if (token) {
-      // 🚨 Futuramente, vamos criar a tabela 'user_tokens' no Supabase para salvar isso
-      console.log("Token a ser salvo no banco:", token);
+      // 2. Salva o token mágico no Supabase (se já existir, ele só ignora graças ao 'onConflict')
+      const { error } = await supabase
+        .from('user_tokens')
+        .upsert([{ token: token }], { onConflict: 'token' });
+
+      if (error) {
+        swalDark.fire('Erro', 'Ocorreu um erro ao vincular seu dispositivo no banco.', 'error');
+        console.error(error);
+        return;
+      }
+
       setPushEnabled(true);
-      swalDark.fire('Notificações Ativadas!', 'O Patrão vai te chamar quando necessário.', 'success');
+      swalDark.fire('Dispositivo Vinculado!', 'O Patrão vai te chamar quando necessário.', 'success');
     } else {
-      swalDark.fire('Ops!', 'Você negou a permissão ou ocorreu um erro.', 'warning');
+      swalDark.fire('Ops!', 'Você negou a permissão ou ocorreu um erro na nuvem.', 'warning');
     }
   };
 
@@ -163,7 +173,6 @@ export default function Sidebar() {
         }
         .fab-button:hover { transform: scale(1.08); }
         
-        /* NOVO: Botão Flutuante do Sino (Notificações) */
         .bell-fab-container { position: absolute; bottom: 20px; right: -15px; z-index: 101; display: ${isCollapsed ? 'none' : 'block'}; }
         .bell-fab { width: 45px; height: 45px; background-color: #262626; color: #eab308; border: 1px solid #444; border-radius: 50%; font-size: 1.2rem; display: flex; alignItems: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: all 0.2s; }
         .bell-fab:hover { background-color: #333; transform: scale(1.1); }
@@ -180,7 +189,6 @@ export default function Sidebar() {
         .nav-link.active .nav-icon { color: ${isCollapsed ? '#0070f3' : 'inherit'}; }
         .nav-text { display: ${isCollapsed ? 'none' : 'block'}; }
         
-        /* Botão sutil de Ativar Notificações na Sidebar */
         .push-action-btn { background: none; border: none; color: #555; font-size: 0.75rem; text-decoration: underline; cursor: pointer; margin-top: 1rem; display: ${isCollapsed ? 'none' : 'block'}; }
 
         .footer-box { margin-top: auto; padding-top: 1.5rem; border-top: 1px solid #333; text-align: center; white-space: nowrap; position: relative; }
@@ -215,7 +223,6 @@ export default function Sidebar() {
           .fab-container { position: fixed; bottom: 95px; right: 20px; margin: 0; z-index: 1000; }
           .fab-button { width: 60px; height: 60px; box-shadow: 0 8px 25px rgba(0, 112, 243, 0.6); }
 
-          /* O sino sobe um andar para não colar no botão de + */
           .bell-fab-container { display: block; position: fixed; bottom: 170px; right: 28px; z-index: 1000; }
           .bell-fab { width: 45px; height: 45px; }
 
@@ -238,7 +245,6 @@ export default function Sidebar() {
           <button className="fab-button" onClick={handleOpenModal} title="Lançamento Rápido">+</button>
         </div>
 
-        {/* BOTÃO FLUTUANTE DE NOTIFICAÇÕES (SINO) */}
         <div className="bell-fab-container">
            <button className="bell-fab" onClick={() => setIsNotificationsModalOpen(true)} title="Histórico de Notificações">🔔</button>
         </div>
@@ -264,9 +270,7 @@ export default function Sidebar() {
         <div className="footer-box"><p className="footer-text">{isCollapsed ? '©' : 'Kauã Alves © 2026'}</p></div>
       </aside>
 
-      {/* ======================================================================= */}
-      {/* 1. MODAL GLOBAL DE LANÇAMENTO (COM BACKDROP)                            */}
-      {/* ======================================================================= */}
+      {/* MODAL GLOBAL DE LANÇAMENTO */}
       {isModalOpen && (
         <div onClick={handleBackdropClick} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
           <div className="sidebar-modal-box" onClick={(e) => e.stopPropagation()}>
@@ -286,7 +290,6 @@ export default function Sidebar() {
 
               <textarea className="sidebar-input" placeholder={activeTab === 'note' ? "Ideia rápida ou anotação..." : "Descrição ou detalhes (opcional)..."} value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} style={{ resize: 'vertical', minHeight: '60px' }} />
 
-              {/* CAMPOS ESPECÍFICOS DE ATIVIDADE */}
               {activeTab === 'activity' && (
                 <div>
                   <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '0.5rem' }}>Agendar para:</label>
@@ -294,7 +297,6 @@ export default function Sidebar() {
                 </div>
               )}
 
-              {/* CAMPOS ESPECÍFICOS DE META */}
               {activeTab === 'goal' && (
                 <>
                   <div className="goal-toggle-wrapper">
@@ -326,7 +328,6 @@ export default function Sidebar() {
                 </>
               )}
 
-              {/* CONTEXTO VÁLIDO PARA TODOS */}
               <div style={{ marginTop: '0.2rem' }}>
                 <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '0.5rem' }}>Vincular ao Cliente (Opcional):</label>
                 <select className="sidebar-input" value={formData.context_id} onChange={(e) => setFormData({...formData, context_id: e.target.value})}>
@@ -344,9 +345,6 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* ======================================================================= */}
-      {/* 2. SUB-MODAL DE CONFIGURAÇÃO DE ROTINAS                                 */}
-      {/* ======================================================================= */}
       {isConfigModalOpen && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
           <div className="config-modal-box">
@@ -384,9 +382,7 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* ======================================================================= */}
-      {/* 3. MODAL DE HISTÓRICO DE NOTIFICAÇÕES (SINO)                            */}
-      {/* ======================================================================= */}
+      {/* MODAL DE HISTÓRICO DE NOTIFICAÇÕES (SINO) */}
       {isNotificationsModalOpen && (
         <div onClick={handleBackdropClick} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'flex-end', padding: '1rem' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: '#1e1e1e', borderRadius: '24px', padding: '2rem', width: '100%', maxWidth: '400px', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333', boxShadow: '0 -10px 40px rgba(0,0,0,0.5)', animation: 'slideUp 0.3s ease-out' }}>
