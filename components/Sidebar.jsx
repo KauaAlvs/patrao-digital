@@ -82,43 +82,110 @@ export default function Sidebar() {
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: '🏠' }, { name: 'Minha Agenda', path: '/agenda', icon: '📅' },
-    { name: 'Metas', path: '/metas', icon: '🎯' }, { name: 'Corporativo', path: '/corporativo', icon: '🏢' },
-    { name: 'Bloco de Notas', path: '/notas', icon: '📝' }
+    { name: 'Dashboard', path: '/', icon: '🏠' }, { name: 'Agenda', path: '/agenda', icon: '📅' },
+    { name: 'Metas', path: '/metas', icon: '🎯' }, { name: 'Empresas', path: '/corporativo', icon: '🏢' },
+    { name: 'Notas', path: '/notas', icon: '📝' }
   ];
 
   return (
     <>
-      <aside style={{ width: isCollapsed ? '80px' : '260px', backgroundColor: '#121212', height: '100vh', padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', borderRight: '1px solid #333', transition: 'width 0.3s ease', overflowX: 'hidden', position: 'relative' }}>
-        <button onClick={() => setIsCollapsed(!isCollapsed)} style={{ position: 'absolute', top: '1.5rem', right: isCollapsed ? '0' : '1rem', left: isCollapsed ? '0' : 'auto', margin: isCollapsed ? '0 auto' : '0', background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '1.2rem', zIndex: 10, width: '30px', textAlign: 'center' }} title={isCollapsed ? "Expandir menu" : "Recolher menu"}>{isCollapsed ? '❯' : '❮'}</button>
-        <div style={{ marginBottom: '2.5rem', marginTop: '2.5rem', textAlign: 'center', transition: 'all 0.3s' }}>
-          <h2 style={{ color: '#fff', margin: 0, fontSize: isCollapsed ? '1.2rem' : '1.5rem', letterSpacing: '1px', whiteSpace: 'nowrap' }}>{isCollapsed ? <span>P<span style={{ color: '#0070f3' }}>D</span></span> : <span>PATRÃO<span style={{ color: '#0070f3' }}>DIGITAL</span></span>}</h2>
-          {!isCollapsed && <p style={{ color: '#666', fontSize: '0.75rem', marginTop: '0.2rem', textTransform: 'uppercase' }}>Sistema de Gestão</p>}
+      {/* CSS RESPONSIVO MUTANTE */}
+      <style>{`
+        .sidebar-wrapper {
+          width: ${isCollapsed ? '80px' : '260px'};
+          background-color: #121212; height: 100vh; padding: 1.5rem 1rem;
+          display: flex; flex-direction: column; border-right: 1px solid #333;
+          transition: width 0.3s ease; position: relative; z-index: 100;
+        }
+        .collapse-btn {
+          position: absolute; top: 1.5rem; right: ${isCollapsed ? '0' : '1rem'};
+          margin: ${isCollapsed ? '0 auto' : '0'}; left: ${isCollapsed ? '0' : 'auto'};
+          background: none; border: none; color: #888; cursor: pointer; font-size: 1.2rem; width: 30px;
+        }
+        .logo-box { margin: 2.5rem 0; text-align: center; white-space: nowrap; }
+        .logo-title { color: #fff; margin: 0; font-size: ${isCollapsed ? '1.2rem' : '1.5rem'}; letter-spacing: 1px; }
+        .logo-sub { color: #666; font-size: 0.75rem; margin-top: 0.2rem; text-transform: uppercase; display: ${isCollapsed ? 'none' : 'block'}; }
+        
+        .fab-container { display: flex; justify-content: center; margin-bottom: 2rem; }
+        .fab-button {
+          width: ${isCollapsed ? '45px' : '55px'}; height: ${isCollapsed ? '45px' : '55px'};
+          background-color: #0070f3; color: #fff; border: none; border-radius: 50%;
+          font-size: 2rem; display: flex; align-items: center; justify-content: center;
+          cursor: pointer; box-shadow: 0 4px 15px rgba(0, 112, 243, 0.4); transition: all 0.2s; line-height: 0;
+        }
+        .fab-button:hover { transform: scale(1.08); }
+
+        .nav-menu { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; }
+        .nav-link {
+          padding: ${isCollapsed ? '1rem 0' : '1rem 1.2rem'}; border-radius: 10px; display: flex; align-items: center;
+          justify-content: ${isCollapsed ? 'center' : 'flex-start'}; gap: 1rem;
+          transition: all 0.2s; white-space: nowrap; text-decoration: none;
+        }
+        .nav-link.active { background-color: #1e1e1e; color: #fff; border-left: ${isCollapsed ? '4px solid transparent' : '4px solid #0070f3'}; font-weight: bold; }
+        .nav-link.inactive { background-color: transparent; color: #888; border-left: 4px solid transparent; }
+        .nav-icon { font-size: 1.3rem; }
+        .nav-link.active .nav-icon { color: ${isCollapsed ? '#0070f3' : 'inherit'}; }
+        .nav-text { display: ${isCollapsed ? 'none' : 'block'}; }
+
+        .footer-box { margin-top: auto; padding-top: 1.5rem; border-top: 1px solid #333; text-align: center; white-space: nowrap; }
+        .footer-text { color: #555; font-size: 0.75rem; }
+
+        /* ============================================== */
+        /* MAGIA MOBILE APP: BOTTOM NAVIGATION BAR & FAB */
+        /* ============================================== */
+        @media (max-width: 768px) {
+          .sidebar-wrapper {
+            width: 100% !important; height: 75px; flex-direction: row;
+            position: fixed; bottom: 0; left: 0; padding: 0;
+            border-right: none; border-top: 1px solid #222;
+            background-color: rgba(18, 18, 18, 0.98); backdrop-filter: blur(10px);
+            align-items: center; justify-content: space-around;
+            padding-bottom: env(safe-area-inset-bottom); /* Fix para iPhones */
+          }
+          .collapse-btn, .logo-box, .footer-box { display: none; }
+          .nav-menu { flex-direction: row; justify-content: space-around; width: 100%; align-items: center; padding: 0 0.5rem; }
+          .nav-link { flex-direction: column; gap: 0.3rem; padding: 0.5rem; border: none !important; min-width: 60px; justify-content: center; }
+          .nav-link.active { background-color: transparent; color: #0070f3; }
+          .nav-icon { font-size: 1.4rem; color: inherit; }
+          .nav-text { display: block; font-size: 0.6rem; font-weight: bold; margin: 0; }
+
+          /* FAB (Botão de Cadastro) Flutuando no Celular */
+          .fab-container { position: fixed; bottom: 95px; right: 20px; margin: 0; z-index: 1000; }
+          .fab-button { width: 60px; height: 60px; box-shadow: 0 8px 25px rgba(0, 112, 243, 0.6); }
+        }
+      `}</style>
+
+      <aside className="sidebar-wrapper">
+        <button className="collapse-btn" onClick={() => setIsCollapsed(!isCollapsed)} title={isCollapsed ? "Expandir menu" : "Recolher menu"}>{isCollapsed ? '❯' : '❮'}</button>
+        <div className="logo-box">
+          <h2 className="logo-title">{isCollapsed ? <span>P<span style={{ color: '#0070f3' }}>D</span></span> : <span>PATRÃO<span style={{ color: '#0070f3' }}>DIGITAL</span></span>}</h2>
+          <p className="logo-sub">Sistema de Gestão</p>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem' }}>
-          <button onClick={handleOpenModal} title="Lançamento Rápido" style={{ width: isCollapsed ? '45px' : '55px', height: isCollapsed ? '45px' : '55px', backgroundColor: '#0070f3', color: '#fff', border: 'none', borderRadius: '50%', fontSize: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0, 112, 243, 0.4)', transition: 'all 0.2s', lineHeight: 0 }} onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.08)'} onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}>+</button>
+        <div className="fab-container">
+          <button className="fab-button" onClick={handleOpenModal} title="Lançamento Rápido">+</button>
         </div>
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+        <nav className="nav-menu">
           {navItems.map((item) => {
             const isActive = pathname === item.path;
             return (
               <Link key={item.path} href={item.path} style={{ textDecoration: 'none' }} title={isCollapsed ? item.name : ""}>
-                <div style={{ padding: isCollapsed ? '1rem 0' : '1rem 1.2rem', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: '1rem', backgroundColor: isActive ? '#1e1e1e' : 'transparent', color: isActive ? '#fff' : '#888', borderTop: '1px solid transparent', borderRight: '1px solid transparent', borderBottom: '1px solid transparent', borderLeft: isActive && !isCollapsed ? '4px solid #0070f3' : '4px solid transparent', transition: 'all 0.2s', fontWeight: isActive ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
-                  <span style={{ fontSize: '1.3rem', color: isActive && isCollapsed ? '#0070f3' : 'inherit' }}>{item.icon}</span>
-                  {!isCollapsed && <span>{item.name}</span>}
+                <div className={`nav-link ${isActive ? 'active' : 'inactive'}`}>
+                  <span className="nav-icon">{item.icon}</span>
+                  <span className="nav-text">{item.name}</span>
                 </div>
               </Link>
             );
           })}
         </nav>
-        <div style={{ marginTop: 'auto', paddingTop: '1.5rem', borderTop: '1px solid #333', textAlign: 'center', whiteSpace: 'nowrap' }}><p style={{ color: '#555', fontSize: '0.75rem' }}>{isCollapsed ? '©' : 'Kauã Alves © 2026'}</p></div>
+        <div className="footer-box"><p className="footer-text">{isCollapsed ? '©' : 'Kauã Alves © 2026'}</p></div>
       </aside>
 
+      {/* MODAL GLOBAL DE LANÇAMENTO (Fica responsivo nativamente por usar % e maxWidth) */}
       {isModalOpen && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
-          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '20px', width: '100%', maxWidth: '500px', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333', overflow: 'hidden', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '20px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
             <div style={{ padding: '1.5rem 2rem', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ color: '#fff', margin: 0, fontSize: '1.3rem' }}>🚀 Lançamento Rápido</h3>
               <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: '#888', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
@@ -133,7 +200,6 @@ export default function Sidebar() {
             <form onSubmit={handleSubmit} style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               <input type="text" required placeholder={activeTab === 'goal' ? "Ex: Fechar 3 contratos" : "Título principal..."} value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} style={{ width: '100%', padding: '1rem', backgroundColor: '#262626', color: '#fff', borderTop: '1px solid #444', borderRight: '1px solid #444', borderBottom: '1px solid #444', borderLeft: '1px solid #444', borderRadius: '10px', fontSize: '1.1rem', outline: 'none' }} />
 
-              {/* TEXTAREA AGORA LIBERADA PARA AS METAS TAMBÉM */}
               <textarea placeholder={activeTab === 'note' ? "Ideia rápida ou anotação..." : "Descrição ou detalhes (opcional)..."} value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} style={{ width: '100%', padding: '1rem', backgroundColor: '#262626', color: '#fff', borderTop: '1px solid #444', borderRight: '1px solid #444', borderBottom: '1px solid #444', borderLeft: '1px solid #444', borderRadius: '10px', resize: 'vertical', minHeight: '80px', outline: 'none' }} />
 
               {activeTab === 'activity' && (
