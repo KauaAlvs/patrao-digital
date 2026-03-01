@@ -66,6 +66,23 @@ export default function RootLayout({ children }) {
             }
           }
         `}} />
+      {/* MOTOR RESPONSIVO GLOBAL */}
+        <style dangerouslySetInnerHTML={{__html: `
+          /* ... seu CSS continua igual aqui ... */
+        `}} />
+
+        {/* SCRIPT DE INSTALAÇÃO DO PWA */}
+        <script dangerouslySetInnerHTML={{__html: `
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+              navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                console.log('PWA: ServiceWorker registrado com sucesso!', registration.scope);
+              }, function(err) {
+                console.log('PWA: Falha ao registrar o ServiceWorker: ', err);
+              });
+            });
+          }
+        `}} />
       </body>
     </html>
   )
