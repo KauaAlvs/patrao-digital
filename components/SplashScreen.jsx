@@ -3,28 +3,42 @@
 import { useState, useEffect } from 'react';
 
 export default function SplashScreen() {
-  const [show, setShow] = useState(true);
-  const [render, setRender] = useState(true);
+  const [isAppReady, setIsAppReady] = useState(false);
+  const [showSplash, setShowSplash] = useState(false);
 
   useEffect(() => {
-    // Fica na tela por 2.5 segundos e depois começa a sumir
-    const timer = setTimeout(() => {
-      setShow(false);
-      // Remove do código 500ms depois para liberar a memória
-      setTimeout(() => setRender(false), 500);
-    }, 2500);
+    // Verifica se você já abriu o app nesta sessão (para não irritar a cada F5)
+    const hasSeenSplash = sessionStorage.getItem('patrao_splash_viewed');
 
-    return () => clearTimeout(timer);
+    if (!hasSeenSplash) {
+      setShowSplash(true);
+      
+      // TEMPO DE EXIBIÇÃO AUMENTADO PARA 4 SEGUNDOS (4000ms)
+      const timer = setTimeout(() => {
+        setShowSplash(false); // Inicia o fade-out (desaparecer)
+        sessionStorage.setItem('patrao_splash_viewed', 'true');
+        
+        // Espera 500ms (tempo da transição CSS) antes de liberar o aplicativo
+        setTimeout(() => setIsAppReady(true), 500);
+      }, 4000); 
+
+      return () => clearTimeout(timer);
+    } else {
+      // Se já estava com o app aberto, pula a tela de carregamento direto
+      setIsAppReady(true);
+    }
   }, []);
 
-  if (!render) return null;
+  if (isAppReady) return null;
+
+  if (!showSplash) return <div style={{ position: 'fixed', inset: 0, backgroundColor: '#121212', zIndex: 99999 }}></div>;
 
   return (
     <div style={{
-      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-      backgroundColor: '#121212', zIndex: 99999, // Fica por cima de TUDO
+      position: 'fixed', inset: 0,
+      backgroundColor: '#121212', zIndex: 99999,
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      opacity: show ? 1 : 0, transition: 'opacity 0.5s ease-out', pointerEvents: 'none'
+      opacity: showSplash ? 1 : 0, transition: 'opacity 0.5s ease-out'
     }}>
       <style>{`
         .spinner {
@@ -42,12 +56,13 @@ export default function SplashScreen() {
         .splash-title {
           font-size: 2.2rem; color: #fff; margin: 0;
           letter-spacing: 1px; font-weight: bold;
-          animation: fadeInUp 0.8s ease-out;
+          animation: fadeInUp 0.8s ease-out forwards;
         }
         .splash-subtitle {
           color: #0070f3; font-size: 0.9rem; margin-top: 0.5rem;
           text-transform: uppercase; letter-spacing: 3px; font-weight: bold;
-          animation: fadeInUp 1s ease-out;
+          opacity: 0; 
+          animation: fadeInUp 1s ease-out 0.3s forwards;
         }
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(20px); }

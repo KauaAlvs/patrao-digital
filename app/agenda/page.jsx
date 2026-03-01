@@ -4,10 +4,12 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import DashboardHeader from '../../components/DashboardHeader';
 import Swal from 'sweetalert2';
+import PageLoader from '../../components/PageLoader'; // <-- INOVAÇÃO AQUI
 
+// Ajuste do Z-Index do SweetAlert para garantir que ele sempre fique na frente de tudo (acima de 2000)
 const swalDark = Swal.mixin({
   background: '#1e1e1e', color: '#ffffff', confirmButtonColor: '#0070f3', cancelButtonColor: '#444',
-  customClass: { popup: 'border border-gray-700 rounded-xl' }
+  customClass: { popup: 'border border-gray-700 rounded-xl', container: 'swal-high-zindex' }
 });
 
 export default function AgendaPage() {
@@ -185,7 +187,6 @@ export default function AgendaPage() {
     return { start, end };
   };
 
-  // === CÉREBRO DE PROJEÇÃO CORRIGIDO ===
   const getGoalForDay = (g, targetDate) => {
     const isWeekday = targetDate.getDay() >= 1 && targetDate.getDay() <= 5;
     if (g.goal_type === 'routine' && !isWeekday) return null;
@@ -199,7 +200,7 @@ export default function AgendaPage() {
 
     if (tDateVal >= startVal && tDateVal <= endVal) {
       let isCompletedForDay = false;
-      let displayAmount = g.current_amount; // Assume o valor real do banco inicialmente
+      let displayAmount = g.current_amount; 
 
       if (g.goal_type === 'single') {
         isCompletedForDay = g.status === 'completed';
@@ -211,19 +212,24 @@ export default function AgendaPage() {
         const aStart = activeCycle.start.getTime();
 
         if (cStart === aStart) {
-          // Estamos no ciclo atual: reflete exatamente o banco
           isCompletedForDay = g.status === 'completed';
         } else if (cStart > aStart) {
-          // PROJEÇÃO DO FUTURO: O sistema zera visualmente a rotina para os próximos ciclos
           isCompletedForDay = false;
           displayAmount = 0; 
         } else {
-          return null; // Omitir ciclos passados para não poluir a agenda
+          return null; 
         }
       }
       return { ...g, itemType: 'goal', isCompleted: isCompletedForDay, current_amount: displayAmount, cycleStart: cycle.start, cycleEnd: cycle.end };
     }
     return null;
+  };
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      setIsDayModalOpen(false);
+      setManagingItem(null);
+    }
   };
 
   async function handleCompleteItem(item) {
@@ -332,15 +338,40 @@ export default function AgendaPage() {
     );
   };
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}><p style={{ color: '#a0a0a0' }}>Sincronizando Agenda...</p></div>;
+  // =======================================================
+  // INOVAÇÃO: BLOCO DE CARREGAMENTO PREMIUM COM ANIMAÇÃO
+  // =======================================================
+  if (loading) return <PageLoader text="Sincronizando Agenda..." icon="📅" />;
 
   return (
-    <div>
+    <div style={{ paddingBottom: '80px' }}>
       <style>{`
+        /* Animações e Efeitos */
         @keyframes pulse-animation { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.1); } 100% { opacity: 1; transform: scale(1); } }
         .pulsing-indicator { animation: pulse-animation 1.5s infinite; }
         .feed-card:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.4); border-color: #666 !important; }
         .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+        
+        /* Força o SweetAlert a passar por cima dos modais da agenda (z-index > 2000) */
+        .swal-high-zindex { z-index: 99999 !important; }
+
+        /* MAGIA RESPONSIVA DA AGENDA */
+        @media (max-width: 768px) {
+          /* Encolhe o padding interno dos modais para caber no celular */
+          .agenda-modal-box { width: 95% !important; padding: 1.5rem !important; max-height: 90vh; overflow-y: auto; }
+          .agenda-sub-modal { padding: 1.5rem !important; }
+          
+          /* Ajuste dos quadradinhos do calendário */
+          .cal-grid-header { font-size: 0.75rem !important; gap: 0.2rem !important; }
+          .cal-grid-body { gap: 0.2rem !important; }
+          .cal-day-box { min-height: 60px !important; padding: 0.2rem !important; border-radius: 8px !important; }
+          .cal-day-text { font-size: 0.85rem !important; }
+          .pulsing-indicator { width: 6px !important; height: 6px !important; } /* Bolinhas menores no mobile */
+          
+          /* Botões lado a lado empilhados se não houver espaço */
+          .agenda-actions-row { flex-direction: column; gap: 0.8rem !important; }
+          .agenda-actions-row button { width: 100%; }
+        }
       `}</style>
       
       <DashboardHeader title="Minha Agenda" subtitle="Controle visual de compromissos. Clique nos dias para gerenciar." />
@@ -354,11 +385,11 @@ export default function AgendaPage() {
             <button onClick={() => setCurrentDate(new Date(year, month + 1, 1))} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer' }}>▶</button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.5rem', textAlign: 'center', marginBottom: '0.5rem', fontWeight: 'bold', color: '#888', fontSize: '0.9rem' }}>
+          <div className="cal-grid-header" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.5rem', textAlign: 'center', marginBottom: '0.5rem', fontWeight: 'bold', color: '#888', fontSize: '0.9rem' }}>
             <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.5rem' }}>
+          <div className="cal-grid-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.5rem' }}>
             {calendarDays.map((day, index) => {
               if (day === null) return <div key={`empty-${index}`} style={{ padding: '1rem' }}></div>;
               const thisDate = new Date(year, month, day);
@@ -373,7 +404,7 @@ export default function AgendaPage() {
               });
 
               return (
-                <div key={day} onClick={() => { setSelectedDate(thisDate); setIsDayModalOpen(true); }} style={{ 
+                <div key={day} className="cal-day-box" onClick={() => { setSelectedDate(thisDate); setIsDayModalOpen(true); }} style={{ 
                     backgroundColor: '#2d2d2d', borderRadius: '12px', padding: '0.5rem', minHeight: '85px',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer',
                     borderTop: isToday ? '2px solid #0070f3' : '1px solid transparent',
@@ -385,7 +416,7 @@ export default function AgendaPage() {
                 onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#3d3d3d'}
                 onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2d2d2d'}
                 >
-                  <span style={{ color: isToday ? '#0070f3' : '#fff', fontWeight: isToday ? 'bold' : 'normal', marginBottom: 'auto' }}>{day}</span>
+                  <span className="cal-day-text" style={{ color: isToday ? '#0070f3' : '#fff', fontWeight: isToday ? 'bold' : 'normal', marginBottom: 'auto' }}>{day}</span>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'center', marginTop: '4px' }}>
                     {dayItems.slice(0, 5).map(item => (
                       <div key={`${item.itemType}-${item.id}`} className={item.itemType === 'goal' && !item.isCompleted ? 'pulsing-indicator' : ''} style={{ 
@@ -412,13 +443,14 @@ export default function AgendaPage() {
         </section>
       </div>
 
+      {/* 1. MODAL DO DIA CLICADO */}
       {isDayModalOpen && selectedDate && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
-          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '20px', padding: '2rem', width: '100%', maxWidth: '600px', maxHeight: '85vh', overflowY: 'auto', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
+        <div onClick={handleBackdropClick} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}>
+          <div className="agenda-modal-box" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: '#1e1e1e', borderRadius: '20px', padding: '2rem', width: '100%', maxWidth: '600px', maxHeight: '85vh', overflowY: 'auto', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', borderBottom: '1px solid #333', paddingBottom: '1rem' }}>
               <div>
                 <h3 style={{ color: '#fff', margin: 0, fontSize: '1.4rem' }}>📅 Foco do Dia</h3>
-                <p style={{ color: '#0070f3', margin: '0.3rem 0 0 0', fontWeight: 'bold' }}>{selectedDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                <p style={{ color: '#0070f3', margin: '0.3rem 0 0 0', fontWeight: 'bold', textTransform: 'capitalize' }}>{selectedDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
               </div>
               <button onClick={() => setIsDayModalOpen(false)} style={{ background: 'none', border: 'none', color: '#888', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
             </div>
@@ -436,9 +468,10 @@ export default function AgendaPage() {
         </div>
       )}
 
+      {/* 2. MODAL DE GERENCIAMENTO (ABRE POR CIMA DO DIA) */}
       {managingItem && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000, padding: '1rem' }}>
-          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '20px', padding: '2.5rem', width: '100%', maxWidth: '550px', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333' }}>
+        <div onClick={handleBackdropClick} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.9)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000, padding: '1rem' }}>
+          <div className="agenda-sub-modal" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: '#1e1e1e', borderRadius: '20px', padding: '2.5rem', width: '100%', maxWidth: '550px', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333' }}>
             
             <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
               <div style={{ width: '80px', height: '80px', margin: '0 auto 1rem', backgroundColor: '#2d2d2d', borderRadius: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '10px' }}>
@@ -495,7 +528,7 @@ export default function AgendaPage() {
                 )
               )}
 
-              <div style={{ display: 'flex', gap: '1rem' }}>
+              <div className="agenda-actions-row" style={{ display: 'flex', gap: '1rem' }}>
                 <button onClick={() => setManagingItem(null)} style={{ flex: 1, padding: '1rem', backgroundColor: 'transparent', color: '#aaa', borderTop: '1px solid #444', borderRight: '1px solid #444', borderBottom: '1px solid #444', borderLeft: '1px solid #444', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Voltar</button>
                 <button onClick={() => handleDeleteItem(managingItem)} style={{ flex: 1, padding: '1rem', backgroundColor: 'transparent', color: '#dc3545', borderTop: '1px solid #dc3545', borderRight: '1px solid #dc3545', borderBottom: '1px solid #dc3545', borderLeft: '1px solid #dc3545', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>🗑 Excluir</button>
               </div>

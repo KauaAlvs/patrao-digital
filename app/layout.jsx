@@ -30,6 +30,10 @@ export default function RootLayout({ children }) {
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body>
+        
+        {/* === TELA DE CARREGAMENTO ANIMADA === */}
+        <SplashScreen />
+
         <div className="app-layout">
           <Sidebar />
           <main className="app-main">
@@ -61,7 +65,7 @@ export default function RootLayout({ children }) {
             .app-layout { flex-direction: column; }
             .app-main { padding: 1rem; padding-bottom: 120px; } /* Espaço para a barra inferior */
 
-            /* 1. Conserta os quadrados do Calendário que estavam apertados */
+            /* 1. Conserta os quadrados do Calendário da Agenda que estavam apertados */
             div[style*="grid-template-columns: repeat(7"] {
               gap: 0.2rem !important;
             }
@@ -71,32 +75,24 @@ export default function RootLayout({ children }) {
             }
             div[style*="font-size: 0.9rem"] { font-size: 0.75rem !important; }
 
-            /* 2. Formata TODOS os Modais do sistema (Agenda, Metas, Novo Lançamento) */
+            /* 2. Formata Modais soltos que não possuem classe própria */
             div[style*="max-width: 480px"], div[style*="max-width: 500px"], 
             div[style*="max-width: 550px"], div[style*="max-width: 600px"] {
-              width: 95% !important; /* Usa 95% da tela do celular */
-              max-height: 90vh !important; /* Nunca ultrapassa a tela (remove scroll extra) */
-              padding: 1.2rem !important; /* Diminui o respiro interno para caber mais coisa */
+              width: 95% !important;
+              max-height: 90vh !important;
               margin: 0 auto;
             }
 
-            /* 3. Quebra os formulários que estavam lado a lado para um embaixo do outro */
-            form div[style*="display: flex"] {
-              flex-direction: column !important;
-              gap: 0.8rem !important;
-            }
-
-            /* 4. Padroniza fontes para evitar quebra de layout */
+            /* 3. Padroniza fontes genéricas para evitar quebra de layout */
             h3 { font-size: 1.2rem !important; margin-bottom: 1rem !important; }
             p { font-size: 0.85rem !important; }
             
-            /* 5. Ajuste de Inputs para evitar zoom e toques acidentais */
+            /* 4. Ajuste de Inputs soltos para evitar zoom do iPhone */
             input, select, textarea {
               font-size: 16px !important;
-              padding: 0.8rem !important;
             }
 
-            /* 6. Diminui os ícones gigantes dos modais */
+            /* 5. Diminui ícones gigantes */
             div[style*="width: 80px"], div[style*="width: 90px"] {
               width: 60px !important;
               height: 60px !important;

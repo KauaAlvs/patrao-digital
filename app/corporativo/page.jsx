@@ -4,12 +4,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import DashboardHeader from '../../components/DashboardHeader';
 import Swal from 'sweetalert2';
+import PageLoader from '../../components/PageLoader'; // <-- INOVAÇÃO AQUI
 
 const swalDark = Swal.mixin({
-  background: '#1e1e1e',
-  color: '#ffffff',
-  confirmButtonColor: '#0070f3',
-  cancelButtonColor: '#444',
+  background: '#1e1e1e', color: '#ffffff', confirmButtonColor: '#0070f3', cancelButtonColor: '#444',
   customClass: { popup: 'border border-gray-700 rounded-xl' }
 });
 
@@ -55,6 +53,12 @@ export default function CorporativoPage() {
     setFormData({ name: comp.name, color: comp.color_hex });
     setLogoFile(null);
     setIsModalOpen(true);
+  };
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      setIsModalOpen(false);
+    }
   };
 
   async function handleSubmit(e) {
@@ -118,13 +122,40 @@ export default function CorporativoPage() {
   const pending = displayedActivities.filter(a => a.status === 'pending');
   const completed = displayedActivities.filter(a => a.status === 'done').slice(0, 10);
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}><p style={{ color: '#a0a0a0' }}>Organizando QG Corporativo...</p></div>;
+  // === AQUI ACONTECE A MÁGICA DO LOADER ===
+  if (loading) return <PageLoader text="Buscando Portfólio de Marcas..." icon="🏢" />;
 
   return (
     <div style={{ paddingBottom: '100px' }}>
+      <style>{`
+        /* ========================================================= */
+        /* CSS DO CARROSSEL DE CORES (Invisível para o Layout Global)*/
+        /* ========================================================= */
+        .color-carousel {
+          display: flex;
+          flex-wrap: nowrap;
+          gap: 1rem;
+          overflow-x: auto;
+          padding-bottom: 0.8rem;
+          align-items: center;
+        }
+        
+        .color-carousel::-webkit-scrollbar { height: 4px; }
+        .color-carousel::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        
+        @media (max-width: 768px) {
+          .action-header { flex-direction: column; align-items: stretch !important; gap: 1rem; }
+          .action-header button { width: 100%; text-align: center; }
+          
+          div[style*="grid-template-columns: repeat(auto-fill, minmax(280px"] { grid-template-columns: 1fr !important; }
+
+          .company-modal-box { width: 95% !important; padding: 1.5rem !important; max-height: 90vh; overflow-y: auto; }
+        }
+      `}</style>
+
       <DashboardHeader title="Gestão Corporativa" subtitle="Painel de marcas e controle de entregas." />
       
-      <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="action-header" style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button 
           onClick={() => setSelectedCompanyId(null)}
           style={{ padding: '0.6rem 1.2rem', backgroundColor: selectedCompanyId === null ? '#333' : 'transparent', border: '1px solid #444', color: '#fff', borderRadius: '8px', cursor: 'pointer' }}
@@ -138,7 +169,7 @@ export default function CorporativoPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
         
-        {/* GRID DE EMPRESAS (CARDS MAIORES) */}
+        {/* GRID DE EMPRESAS */}
         <section>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
             {companies.map(comp => {
@@ -150,20 +181,9 @@ export default function CorporativoPage() {
                   key={comp.id} 
                   onClick={() => setSelectedCompanyId(isSelected ? null : comp.id)}
                   style={{
-                    backgroundColor: isSelected ? '#2d3748' : '#1e1e1e',
-                    borderRadius: '16px',
-                    padding: '1.5rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    position: 'relative',
-                    borderTop: `1px solid ${isSelected ? accentColor : '#333'}`,
-                    borderRight: `1px solid ${isSelected ? accentColor : '#333'}`,
-                    borderBottom: `1px solid ${isSelected ? accentColor : '#333'}`,
-                    borderLeft: `6px solid ${accentColor}`,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '1rem',
+                    backgroundColor: isSelected ? '#2d3748' : '#1e1e1e', borderRadius: '16px', padding: '1.5rem', cursor: 'pointer', transition: 'all 0.2s ease', position: 'relative',
+                    borderTop: `1px solid ${isSelected ? accentColor : '#333'}`, borderRight: `1px solid ${isSelected ? accentColor : '#333'}`, borderBottom: `1px solid ${isSelected ? accentColor : '#333'}`, borderLeft: `6px solid ${accentColor}`,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem',
                     boxShadow: isSelected ? `0 10px 20px rgba(0,0,0,0.4)` : 'none'
                   }}
                 >
@@ -172,22 +192,8 @@ export default function CorporativoPage() {
                     <button onClick={(e) => handleDelete(comp, e)} style={{ background: 'rgba(0,0,0,0.3)', border: 'none', borderRadius: '4px', cursor: 'pointer', padding: '4px' }}>🗑️</button>
                   </div>
 
-                  <div style={{ 
-                    width: '100px', 
-                    height: '100px', 
-                    backgroundColor: '#262626', 
-                    borderRadius: '12px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    padding: '10px',
-                    overflow: 'hidden'
-                  }}>
-                    {comp.logo_url ? (
-                      <img src={comp.logo_url} alt="logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-                    ) : (
-                      <span style={{ fontSize: '2rem' }}>🏢</span>
-                    )}
+                  <div style={{ width: '100px', height: '100px', backgroundColor: '#262626', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', overflow: 'hidden' }}>
+                    {comp.logo_url ? <img src={comp.logo_url} alt="logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: '2rem' }}>🏢</span>}
                   </div>
 
                   <div style={{ textAlign: 'center' }}>
@@ -202,14 +208,13 @@ export default function CorporativoPage() {
           </div>
         </section>
 
-        {/* FEED DE ATIVIDADES (LISTA COMPLETA) */}
+        {/* FEED DE ATIVIDADES */}
         <section style={{ backgroundColor: '#1e1e1e', borderRadius: '16px', padding: '2rem', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333' }}>
           <h3 style={{ marginTop: 0, color: '#fff', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
             {selectedCompanyId ? `Timeline: ${companies.find(c => c.id === selectedCompanyId)?.name}` : 'Fluxo de Trabalho Corporativo'}
           </h3>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-            {/* COLUNA PENDENTES */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
             <div>
               <h4 style={{ color: '#0070f3', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '1rem', borderLeft: '3px solid #0070f3', paddingLeft: '8px' }}>Pendências</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -225,7 +230,6 @@ export default function CorporativoPage() {
               </div>
             </div>
 
-            {/* COLUNA CONCLUÍDAS */}
             <div>
               <h4 style={{ color: '#22c55e', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '1rem', borderLeft: '3px solid #22c55e', paddingLeft: '8px' }}>Entregues</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
@@ -241,10 +245,13 @@ export default function CorporativoPage() {
         </section>
       </div>
 
-      {/* MODAL DE EMPRESA */}
+      {/* MODAL DE EMPRESA (COM BACKDROP CLICK) */}
       {isModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
-          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '20px', padding: '2.5rem', width: '100%', maxWidth: '480px', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+        <div 
+          onClick={handleBackdropClick} 
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}
+        >
+          <div className="company-modal-box" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: '#1e1e1e', borderRadius: '20px', padding: '2.5rem', width: '100%', maxWidth: '480px', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
             <h3 style={{ color: '#fff', margin: '0 0 2rem 0', fontSize: '1.5rem', textAlign: 'center' }}>{editingCompany ? 'Editar Empresa' : '🏢 Nova Empresa'}</h3>
             
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -261,14 +268,25 @@ export default function CorporativoPage() {
 
               <div>
                 <label style={{ color: '#aaa', fontSize: '0.8rem', display: 'block', marginBottom: '1rem' }}>Cor de Identificação:</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.8rem', justifyContent: 'center' }}>
+                
+                {/* CARROSSEL DE CORES AGORA BLINDADO CONTRA O LAYOUT.JSX */}
+                <div className="color-carousel">
                   {PREDEFINED_COLORS.map(c => (
-                    <div key={c} onClick={() => setFormData({...formData, color: c})} style={{ 
-                      width: '35px', height: '35px', borderRadius: '50%', backgroundColor: c, cursor: 'pointer', 
-                      border: formData.color === c ? '3px solid #fff' : '3px solid transparent',
-                      transform: formData.color === c ? 'scale(1.2)' : 'scale(1)',
-                      transition: 'all 0.1s'
-                    }} />
+                    <div 
+                      key={c} 
+                      onClick={() => setFormData({...formData, color: c})} 
+                      style={{ 
+                        flexShrink: 0, /* Proíbe a bolinha de ser esmagada */
+                        width: '35px', 
+                        height: '35px', 
+                        borderRadius: '50%', 
+                        backgroundColor: c, 
+                        cursor: 'pointer', 
+                        border: formData.color === c ? '3px solid #fff' : '3px solid transparent',
+                        transform: formData.color === c ? 'scale(1.1)' : 'scale(1)',
+                        transition: 'all 0.1s'
+                      }} 
+                    />
                   ))}
                 </div>
               </div>

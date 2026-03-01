@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import DashboardHeader from '../components/DashboardHeader';
 import Swal from 'sweetalert2';
+import PageLoader from '../components/PageLoader'; // <-- NOVO LOADER PREMIUM AQUI
 
 const swalDark = Swal.mixin({
   background: '#1e1e1e', color: '#ffffff', confirmButtonColor: '#0070f3', cancelButtonColor: '#444',
@@ -16,9 +16,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [overdueItems, setOverdueItems] = useState([]);
   const [managingItem, setManagingItem] = useState(null);
+  const [greeting, setGreeting] = useState('Olá, Patrão!');
 
   useEffect(() => {
     fetchData();
+    const hour = new Date().getHours();
+    if (hour < 12) setGreeting('Bom dia, Kauã!');
+    else if (hour < 18) setGreeting('Boa tarde, Kauã!');
+    else setGreeting('Boa noite, Kauã!');
   }, []);
 
   const isSameDay = (d1, d2) => {
@@ -55,32 +60,17 @@ export default function Dashboard() {
   async function fetchData() {
     setLoading(true);
 
-    // Buscando atividades com logo_url do contexto
-    const { data: actData } = await supabase
-      .from('activities')
-      .select(`*, contexts ( name, color_hex, type, logo_url )`)
-      .order('scheduled_for', { ascending: true });
-
-    // Buscando metas com logo_url do contexto
-    const { data: goalsData } = await supabase
-      .from('goals')
-      .select(`*, contexts ( name, color_hex, type, logo_url )`)
-      .in('status', ['in_progress', 'completed']);
+    const { data: actData } = await supabase.from('activities').select(`*, contexts ( name, color_hex, type, logo_url )`).order('scheduled_for', { ascending: true });
+    const { data: goalsData } = await supabase.from('goals').select(`*, contexts ( name, color_hex, type, logo_url )`).in('status', ['in_progress', 'completed']);
 
     const now = new Date();
 
     const processedGoals = (goalsData || []).map(g => ({
-      ...g,
-      itemType: 'goal',
-      referenceDate: getSmartDeadline(g),
-      isCompleted: g.status === 'completed'
+      ...g, itemType: 'goal', referenceDate: getSmartDeadline(g), isCompleted: g.status === 'completed'
     }));
 
     const processedActivities = (actData || []).map(a => ({
-      ...a,
-      itemType: 'activity',
-      referenceDate: a.scheduled_for,
-      isCompleted: a.status === 'done'
+      ...a, itemType: 'activity', referenceDate: a.scheduled_for, isCompleted: a.status === 'done'
     }));
 
     const allItems = [...processedActivities, ...processedGoals];
@@ -114,7 +104,6 @@ export default function Dashboard() {
   }
 
   const now = new Date();
-  const startOfToday = new Date(now).setHours(0,0,0,0);
   const endOfToday = new Date(now).setHours(23,59,59,999);
 
   const todayItems = [...activities, ...goals]
@@ -128,116 +117,181 @@ export default function Dashboard() {
 
   const ActionCard = ({ item, isOverdue }) => {
     const d = new Date(item.referenceDate);
+    const borderColor = isOverdue ? '#ff4b4b' : (item.contexts?.color_hex || '#333');
+    const badgeColor = item.itemType === 'goal' ? '#eab308' : '#0070f3';
+
     return (
       <div 
         onClick={() => setManagingItem(item)}
+        className="action-card"
         style={{
-          backgroundColor: '#2d2d2d', borderRadius: '12px', padding: '1rem', cursor: 'pointer',
-          borderLeft: `4px solid ${item.contexts?.color_hex || '#555'}`,
-          borderTop: isOverdue ? '1px solid #dc3545' : '1px solid transparent',
-          borderRight: isOverdue ? '1px solid #dc3545' : '1px solid transparent',
-          borderBottom: isOverdue ? '1px solid #dc3545' : '1px solid transparent',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)', transition: 'all 0.1s', marginBottom: '0.8rem',
-          display: 'flex', gap: '1rem', alignItems: 'center'
+          backgroundColor: '#1e1e1e', borderRadius: '16px', padding: '1.2rem', cursor: 'pointer',
+          border: `1px solid ${isOverdue ? 'rgba(255, 75, 75, 0.3)' : '#2a2a2a'}`, borderLeft: `6px solid ${borderColor}`,
+          display: 'flex', gap: '1rem', alignItems: 'center', position: 'relative', overflow: 'hidden'
         }}
       >
-        {/* LOGO NO CARD DO KANBAN */}
-        <div style={{ width: '40px', height: '40px', backgroundColor: '#1e1e1e', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-          {item.contexts?.logo_url ? (
-            <img src={item.contexts.logo_url} alt="l" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
-          ) : (
-            <span style={{ fontSize: '1rem' }}>{item.itemType === 'goal' ? '🎯' : '📅'}</span>
-          )}
+        <div style={{ width: '45px', height: '45px', backgroundColor: '#262626', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', padding: '5px' }}>
+          {item.contexts?.logo_url ? <img src={item.contexts.logo_url} alt="logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : <span style={{ fontSize: '1.2rem' }}>{item.itemType === 'goal' ? '🎯' : '📅'}</span>}
         </div>
 
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-            <span style={{ fontSize: '0.6rem', padding: '1px 5px', borderRadius: '3px', fontWeight: 'bold', backgroundColor: item.itemType === 'goal' ? '#eab308' : '#0070f3', color: '#000' }}>
-              {item.itemType === 'goal' ? 'META' : 'ATIV.'}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.65rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold', backgroundColor: `${badgeColor}20`, color: badgeColor, textTransform: 'uppercase' }}>
+              {item.itemType === 'goal' ? 'META' : 'ATIVIDADE'}
             </span>
-            <span style={{ fontSize: '0.75rem', color: isOverdue ? '#ff6b6b' : '#888' }}>
-              {isOverdue ? 'Atrasado' : d.toLocaleDateString('pt-BR')}
+            <span style={{ fontSize: '0.75rem', color: isOverdue ? '#ff4b4b' : '#888', fontWeight: isOverdue ? 'bold' : 'normal' }}>
+              {isOverdue ? '⚠️ Atrasado' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
             </span>
           </div>
-          <h4 style={{ margin: 0, color: '#fff', fontSize: '0.95rem', lineHeight: '1.2' }}>{item.title}</h4>
+          <h4 style={{ margin: 0, color: '#fff', fontSize: '1.05rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.title}</h4>
         </div>
       </div>
     );
   };
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}><p style={{ color: '#a0a0a0' }}>Carregando QG...</p></div>;
+  // =======================================================
+  // INOVAÇÃO: BLOCO DE CARREGAMENTO PREMIUM COM ANIMAÇÃO
+  // =======================================================
+  if (loading) return <PageLoader text="Sincronizando seu QG..." icon="🌍" />;
 
   return (
-    <div style={{ paddingBottom: '80px' }}>
-      <DashboardHeader title="QG Central" subtitle="Seu panorama operacional e de entregas." />
+    <div style={{ paddingBottom: '100px' }}>
+      <style>{`
+        .action-card { transition: all 0.2s ease; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .action-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.4); border-color: #444; }
+        
+        .pulse-alert { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 75, 75, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 75, 75, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 75, 75, 0); } }
 
-      {overdueItems.length > 0 && (
-        <div style={{ backgroundColor: 'rgba(220, 53, 69, 0.1)', borderTop: '1px solid #dc3545', borderRight: '1px solid #dc3545', borderBottom: '1px solid #dc3545', borderLeft: '1px solid #dc3545', borderRadius: '12px', padding: '1.5rem', marginBottom: '2rem' }}>
-          <h3 style={{ margin: '0 0 0.5rem 0', color: '#ff6b6b' }}>⚠️ Alerta de Gargalo</h3>
-          <p style={{ margin: 0, color: '#e0e0e0' }}>Você possui <strong>{overdueItems.length} pendências</strong> acumuladas.</p>
-        </div>
-      )}
+        @media (max-width: 768px) {
+          .dash-stats-grid { grid-template-columns: 1fr 1fr !important; }
+          .dash-stat-card.full-width { grid-column: span 2; }
+          .action-card { padding: 1rem; }
+        }
+      `}</style>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
-        {overdueItems.length > 0 && (
-          <section style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '1.5rem', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333' }}>
-            <h3 style={{ marginTop: 0, color: '#ff6b6b', marginBottom: '1.2rem', borderBottom: '1px solid #333', paddingBottom: '0.5rem' }}>🚨 Atrasados</h3>
-            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>{overdueItems.map(item => <ActionCard key={item.id} item={item} isOverdue={true} />)}</div>
-          </section>
-        )}
-
-        <section style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '1.5rem', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333' }}>
-          <h3 style={{ marginTop: 0, color: '#fff', marginBottom: '1.2rem', borderBottom: '1px solid #333', paddingBottom: '0.5rem' }}>⚡ Foco de Hoje</h3>
-          {todayItems.length === 0 ? <p style={{ color: '#555' }}>Nada para hoje.</p> : todayItems.map(item => <ActionCard key={item.id} item={item} isOverdue={false} />)}
-        </section>
-
-        <section style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '1.5rem', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333' }}>
-          <h3 style={{ marginTop: 0, color: '#a0a0a0', marginBottom: '1.2rem', borderBottom: '1px solid #333', paddingBottom: '0.5rem' }}>🔭 No Radar</h3>
-          {upcomingItems.map(item => <ActionCard key={item.id} item={item} isOverdue={false} />)}
-        </section>
+      {/* HEADER PREMIUM DO DASHBOARD */}
+      <div style={{ marginBottom: '2.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <p style={{ margin: 0, color: '#0070f3', fontWeight: 'bold', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+          {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </p>
+        <h1 style={{ margin: 0, fontSize: '2.2rem', color: '#fff' }}>{greeting}</h1>
+        <p style={{ margin: 0, color: '#888', fontSize: '1rem' }}>Aqui está o resumo do seu QG hoje.</p>
       </div>
 
-      <section style={{ backgroundColor: '#1e1e1e', borderRadius: '12px', padding: '1.5rem', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333', marginTop: '2rem' }}>
-        <h3 style={{ marginTop: 0, color: '#fff', marginBottom: '1.5rem' }}>📊 Metas por Cliente</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-          {goals.filter(g => !g.isCompleted).map(goal => {
-            const pct = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
-            return (
-              <div key={goal.id} style={{ padding: '1.2rem', backgroundColor: '#2d2d2d', borderRadius: '12px', borderLeft: `4px solid ${goal.contexts?.color_hex || '#555'}`, display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                {/* LOGO NA SEÇÃO DE METAS */}
-                <div style={{ width: '45px', height: '45px', backgroundColor: '#1e1e1e', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', padding: '4px' }}>
-                  {goal.contexts?.logo_url ? <img src={goal.contexts.logo_url} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} alt="l" /> : <span>🎯</span>}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <h4 style={{ margin: '0 0 0.5rem 0', color: '#eee', fontSize: '0.95rem' }}>{goal.title}</h4>
-                  <div style={{ width: '100%', backgroundColor: '#1a1a1a', borderRadius: '4px', height: '6px' }}>
-                    <div style={{ width: `${pct}%`, backgroundColor: goal.contexts?.color_hex || '#0070f3', height: '100%', borderRadius: '4px' }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.4rem' }}>
-                     <span style={{ fontSize: '0.7rem', color: '#888' }}>{goal.contexts?.name}</span>
-                     <span style={{ fontSize: '0.7rem', color: goal.contexts?.color_hex || '#0070f3', fontWeight: 'bold' }}>{pct}%</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      {/* CARDS DE RESUMO (SNAPSHOTS) */}
+      <div className="dash-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2.5rem' }}>
+        <div className="dash-stat-card" style={{ backgroundColor: '#181818', padding: '1.5rem', borderRadius: '16px', border: '1px solid #333' }}>
+          <p style={{ margin: '0 0 0.5rem 0', color: '#888', fontSize: '0.85rem', textTransform: 'uppercase' }}>Foco de Hoje</p>
+          <h2 style={{ margin: 0, color: '#fff', fontSize: '2rem' }}>{todayItems.length}</h2>
         </div>
-      </section>
+        <div className="dash-stat-card" style={{ backgroundColor: '#181818', padding: '1.5rem', borderRadius: '16px', border: '1px solid #333' }}>
+          <p style={{ margin: '0 0 0.5rem 0', color: '#888', fontSize: '0.85rem', textTransform: 'uppercase' }}>Metas Ativas</p>
+          <h2 style={{ margin: 0, color: '#eab308', fontSize: '2rem' }}>{goals.filter(g => !g.isCompleted).length}</h2>
+        </div>
+        <div className={`dash-stat-card ${overdueItems.length > 0 ? 'full-width pulse-alert' : ''}`} style={{ backgroundColor: overdueItems.length > 0 ? 'rgba(255, 75, 75, 0.1)' : '#181818', padding: '1.5rem', borderRadius: '16px', border: `1px solid ${overdueItems.length > 0 ? '#ff4b4b' : '#333'}` }}>
+          <p style={{ margin: '0 0 0.5rem 0', color: overdueItems.length > 0 ? '#ff4b4b' : '#888', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: overdueItems.length > 0 ? 'bold' : 'normal' }}>Pendências Atrasadas</p>
+          <h2 style={{ margin: 0, color: overdueItems.length > 0 ? '#ff4b4b' : '#fff', fontSize: '2rem' }}>{overdueItems.length}</h2>
+        </div>
+      </div>
 
-      {managingItem && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
-          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '16px', padding: '2rem', width: '100%', maxWidth: '450px', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333' }}>
-             <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                <div style={{ width: '80px', height: '80px', margin: '0 auto 1rem', backgroundColor: '#2d2d2d', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '10px' }}>
-                   {managingItem.contexts?.logo_url ? <img src={managingItem.contexts.logo_url} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} alt="l" /> : <span style={{ fontSize: '2rem' }}>{managingItem.itemType === 'goal' ? '🎯' : '📅'}</span>}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+        
+        {/* COLUNA: FOCO DE HOJE E ATRASADOS */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          {overdueItems.length > 0 && (
+            <section>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                <span style={{ fontSize: '1.2rem' }}>🚨</span>
+                <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem' }}>Requerem Atenção</h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                {overdueItems.map(item => <ActionCard key={`overdue-${item.id}`} item={item} isOverdue={true} />)}
+              </div>
+            </section>
+          )}
+
+          <section>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+              <span style={{ fontSize: '1.2rem' }}>⚡</span>
+              <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem' }}>Cronograma de Hoje</h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+              {todayItems.length === 0 ? (
+                <div style={{ padding: '2rem', backgroundColor: '#181818', borderRadius: '16px', textAlign: 'center', border: '1px dashed #333' }}>
+                  <p style={{ color: '#666', margin: 0 }}>Você não tem atividades marcadas para hoje. Aproveite!</p>
                 </div>
-                <h3 style={{ color: '#fff', fontSize: '1.4rem', margin: 0 }}>{managingItem.title}</h3>
-                <p style={{ color: '#888', margin: '0.5rem 0 0 0' }}>{managingItem.contexts?.name}</p>
+              ) : todayItems.map(item => <ActionCard key={`today-${item.id}`} item={item} isOverdue={false} />)}
+            </div>
+          </section>
+        </div>
+
+        {/* COLUNA: PRÓXIMOS DIAS E METAS GLOBAIS */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <section>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+              <span style={{ fontSize: '1.2rem' }}>🔭</span>
+              <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem' }}>Próximos Passos</h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+              {upcomingItems.length === 0 ? (
+                <p style={{ color: '#555' }}>Nenhum agendamento futuro.</p>
+              ) : upcomingItems.map(item => <ActionCard key={`upcoming-${item.id}`} item={item} isOverdue={false} />)}
+            </div>
+          </section>
+
+          <section style={{ backgroundColor: '#181818', borderRadius: '20px', padding: '1.5rem', border: '1px solid #333' }}>
+            <h3 style={{ marginTop: 0, color: '#fff', marginBottom: '1.5rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><span>📊</span> Metas Ativas por Empresa</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+              {goals.filter(g => !g.isCompleted).length === 0 ? (
+                <p style={{ color: '#555', textAlign: 'center' }}>Nenhuma meta em andamento.</p>
+              ) : goals.filter(g => !g.isCompleted).map(goal => {
+                const pct = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
+                return (
+                  <div key={goal.id} style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <div style={{ width: '40px', height: '40px', backgroundColor: '#262626', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: '4px' }}>
+                      {goal.contexts?.logo_url ? <img src={goal.contexts.logo_url} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} alt="l" /> : <span>🎯</span>}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                        <span style={{ color: '#eee', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>{goal.title}</span>
+                        <span style={{ fontSize: '0.8rem', color: goal.contexts?.color_hex || '#0070f3', fontWeight: 'bold' }}>{pct}%</span>
+                      </div>
+                      <div style={{ width: '100%', backgroundColor: '#2a2a2a', borderRadius: '6px', height: '8px', overflow: 'hidden' }}>
+                        <div style={{ width: `${pct}%`, backgroundColor: goal.contexts?.color_hex || '#0070f3', height: '100%', borderRadius: '6px', transition: 'width 0.5s ease-out' }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+
+      </div>
+
+      {/* MODAL DE CONCLUSÃO DE ITEM */}
+      {managingItem && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000, padding: '1rem' }}>
+          <div style={{ backgroundColor: '#1e1e1e', borderRadius: '24px', padding: '2.5rem 2rem', width: '100%', maxWidth: '400px', border: '1px solid #333', boxShadow: '0 25px 50px rgba(0,0,0,0.5)' }}>
+             <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                <div style={{ width: '80px', height: '80px', margin: '0 auto 1.5rem', backgroundColor: '#262626', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '10px', boxShadow: 'inset 0 4px 10px rgba(0,0,0,0.3)' }}>
+                   {managingItem.contexts?.logo_url ? <img src={managingItem.contexts.logo_url} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} alt="l" /> : <span style={{ fontSize: '2.5rem' }}>{managingItem.itemType === 'goal' ? '🎯' : '📅'}</span>}
+                </div>
+                <span style={{ fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px', backgroundColor: '#333', color: '#aaa', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
+                  {managingItem.contexts?.name || 'Geral / Pessoal'}
+                </span>
+                <h3 style={{ color: '#fff', fontSize: '1.4rem', margin: '1rem 0 0 0', lineHeight: '1.3' }}>{managingItem.title}</h3>
              </div>
-             <button onClick={() => handleCompleteItem(managingItem)} style={{ width: '100%', padding: '1rem', backgroundColor: '#198754', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem' }}>
-               {managingItem.itemType === 'goal' ? '🎯 Registrar +1' : '✅ Marcar Concluída'}
-             </button>
-             <button onClick={() => setManagingItem(null)} style={{ width: '100%', padding: '0.8rem', backgroundColor: 'transparent', color: '#aaa', border: '1px solid #444', borderRadius: '10px', marginTop: '0.8rem', cursor: 'pointer' }}>Voltar</button>
+             
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+               <button onClick={() => handleCompleteItem(managingItem)} style={{ width: '100%', padding: '1.2rem', backgroundColor: '#0070f3', color: '#fff', border: 'none', borderRadius: '14px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1.1rem', boxShadow: '0 4px 15px rgba(0, 112, 243, 0.4)' }}>
+                 {managingItem.itemType === 'goal' ? '🎯 Registrar Progresso' : '✅ Marcar como Feito'}
+               </button>
+               <button onClick={() => setManagingItem(null)} style={{ width: '100%', padding: '1rem', backgroundColor: 'transparent', color: '#888', border: 'none', borderRadius: '14px', cursor: 'pointer', fontWeight: 'bold' }}>
+                 Voltar para o painel
+               </button>
+             </div>
           </div>
         </div>
       )}
