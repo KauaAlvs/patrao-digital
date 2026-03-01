@@ -1,5 +1,6 @@
 import './globals.css'
 import Sidebar from '../components/Sidebar'
+import SplashScreen from '../components/SplashScreen'
 
 export const metadata = {
   title: 'Patrão Digital',
