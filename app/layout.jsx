@@ -26,7 +26,7 @@ export default function RootLayout({ children }) {
       <head>
         {/* CORREÇÃO DO PWA: Link forçado para o navegador não ter desculpas */}
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body>
         <div className="app-layout">
