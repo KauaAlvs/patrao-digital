@@ -42,9 +42,34 @@ export default function Sidebar() {
     }
     fetchContexts();
     
-    // Checa se o usuário já deu permissão no passado
+    // Checa permissão do Push
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
       setPushEnabled(true);
+    }
+
+    // === SISTEMA DE HISTÓRICO DE NOTIFICAÇÕES (LOCALSTORAGE + FIREBASE SW) ===
+    // 1. Carrega o histórico salvo no dispositivo
+    const savedNotifs = JSON.parse(localStorage.getItem('patrao_notifications') || '[]');
+    setNotificationsList(savedNotifs);
+
+    // 2. Escuta novas notificações chegando com o app aberto
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        // Verifica se a mensagem veio do Firebase FCM
+        if (event.data && event.data.notification) {
+          const newNotif = {
+            title: event.data.notification.title,
+            body: event.data.notification.body,
+            date: new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+          };
+          
+          setNotificationsList(prevList => {
+            const updatedList = [newNotif, ...prevList].slice(0, 20); // Mantém apenas as últimas 20
+            localStorage.setItem('patrao_notifications', JSON.stringify(updatedList));
+            return updatedList;
+          });
+        }
+      });
     }
   }, []);
 
@@ -60,6 +85,11 @@ export default function Sidebar() {
     }
   };
 
+  const clearNotifications = () => {
+    localStorage.removeItem('patrao_notifications');
+    setNotificationsList([]);
+  };
+
   // === SISTEMA DE ATIVAÇÃO E SALVAMENTO DE NOTIFICAÇÕES ===
   const handleEnablePush = async () => {
     if (pushEnabled) {
@@ -67,11 +97,9 @@ export default function Sidebar() {
       return;
     }
     
-    // 1. Pede a permissão e gera o token no Google
     const token = await requestForToken();
     
     if (token) {
-      // 2. Salva o token mágico no Supabase (se já existir, ele só ignora graças ao 'onConflict')
       const { error } = await supabase
         .from('user_tokens')
         .upsert([{ token: token }], { onConflict: 'token' });
@@ -388,7 +416,12 @@ export default function Sidebar() {
           <div onClick={(e) => e.stopPropagation()} style={{ backgroundColor: '#1e1e1e', borderRadius: '24px', padding: '2rem', width: '100%', maxWidth: '400px', borderTop: '1px solid #333', borderRight: '1px solid #333', borderBottom: '1px solid #333', borderLeft: '1px solid #333', boxShadow: '0 -10px 40px rgba(0,0,0,0.5)', animation: 'slideUp 0.3s ease-out' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #333', paddingBottom: '1rem' }}>
               <h3 style={{ color: '#fff', margin: 0, fontSize: '1.2rem' }}>🔔 Central de Alertas</h3>
-              <button onClick={() => setIsNotificationsModalOpen(false)} style={{ background: 'none', border: 'none', color: '#888', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                {notificationsList.length > 0 && (
+                  <button onClick={clearNotifications} style={{ background: 'none', border: 'none', color: '#ff4d4f', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }}>Limpar</button>
+                )}
+                <button onClick={() => setIsNotificationsModalOpen(false)} style={{ background: 'none', border: 'none', color: '#888', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: '150px', maxHeight: '50vh', overflowY: 'auto' }}>
@@ -400,7 +433,10 @@ export default function Sidebar() {
               ) : (
                 notificationsList.map((notif, index) => (
                   <div key={index} style={{ padding: '1rem', backgroundColor: '#262626', borderRadius: '12px', borderLeft: '4px solid #0070f3' }}>
-                    <h5 style={{ margin: '0 0 0.4rem 0', color: '#fff' }}>{notif.title}</h5>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.4rem' }}>
+                      <h5 style={{ margin: 0, color: '#fff', flex: 1 }}>{notif.title}</h5>
+                      <span style={{ fontSize: '0.7rem', color: '#888', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>{notif.date}</span>
+                    </div>
                     <p style={{ margin: 0, color: '#aaa', fontSize: '0.85rem' }}>{notif.body}</p>
                   </div>
                 ))
