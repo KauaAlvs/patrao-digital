@@ -16,7 +16,7 @@ export async function GET(request) {
 
     // 2. Busca os Tokens (Dispositivos)
     const { data: tokensData } = await supabase.from('user_tokens').select('token');
-    if (!tokensData || tokensData.length === 0) return NextResponse.json({ message: 'Sem tokens.' });
+    if (!tokensData || tokensData.length === 0) return NextResponse.json({ message: 'Sem tokens cadastrados.' });
     const tokens = tokensData.map(t => t.token);
 
     const now = new Date();
@@ -24,7 +24,7 @@ export async function GET(request) {
     const inFiveDaysMidnight = todayMidnight + (5 * 24 * 60 * 60 * 1000);
 
     // =========================================================
-    // 3. MOTOR FAXINEIRO (Reset de Rotinas + Isolamento de Dívida)
+    // 3. MOTOR FAXINEIRO (Reset + Isolamento de Dívida)
     // =========================================================
     const { data: routineGoals } = await supabase.from('goals').select('*').eq('goal_type', 'routine');
     
@@ -33,7 +33,6 @@ export async function GET(request) {
       const rType = g.routine_type || g.frequency;
       let needsReset = false;
 
-      // Verificação de Ciclo: Semanal, Mensal ou Dia Específico
       if (rType === 'weekly') {
         const nextMonday = new Date(lastReset);
         nextMonday.setDate(lastReset.getDate() + ((1 + 7 - lastReset.getDay()) % 7 || 7));
@@ -52,19 +51,15 @@ export async function GET(request) {
 
       if (needsReset) {
         const faltam = g.target_amount - g.current_amount;
-        
-        // ISOLAMENTO: Se não concluiu a rotina, vira Atividade Pendente (Alvo Único)
         if (faltam > 0) {
           await supabase.from('activities').insert([{
             title: `[PENDENTE] ${g.title}`,
-            description: `Saldo não concluído do ciclo anterior. Faltaram ${faltam} de ${g.target_amount} unidades.`,
+            description: `Saldo não concluído do ciclo anterior. Faltaram ${faltam} de ${g.target_amount} unidades no fechamento do ciclo.`,
             scheduled_for: now.toISOString(),
             status: 'pending',
             context_id: g.context_id
           }]);
         }
-
-        // Reset do contador para o novo ciclo
         await supabase.from('goals').update({ 
           current_amount: 0, 
           status: 'in_progress', 
@@ -79,10 +74,8 @@ export async function GET(request) {
     const { data: activities } = await supabase.from('activities').select('*').eq('status', 'pending');
     const { data: allGoals } = await supabase.from('goals').select('*').eq('status', 'in_progress');
 
-    // Auxiliar: Calcula fim de ciclo para radar
     const getDeadlineTime = (g) => {
       if (g.goal_type === 'single') return g.deadline ? new Date(g.deadline).getTime() : null;
-      
       const d = new Date(now);
       const rType = g.routine_type || g.frequency;
       if (rType === 'weekly') {
@@ -96,15 +89,23 @@ export async function GET(request) {
       return null;
     };
 
-    let atrasos = []; // Tarefas vencidas ou Alvos Únicos passados do prazo
-    let hoje = []; // Tarefas agendadas para hoje
-    let radar = []; // Metas (Rotina ou Única) vencendo nos próximos 5 dias
+    let atrasos = []; 
+    let hoje = []; 
+    let radar = []; 
 
-    // Analisa Atividades
+    // === CORREÇÃO AQUI: Analisa Atividades do Futuro ===
     (activities || []).forEach(act => {
       const time = new Date(act.scheduled_for).setHours(0,0,0,0);
-      if (time < todayMidnight) atrasos.push({ title: act.title, type: 'task' });
-      else if (time === todayMidnight) hoje.push(act);
+      if (time < todayMidnight) {
+        atrasos.push({ title: act.title, type: 'task' });
+      } 
+      else if (time === todayMidnight) {
+        hoje.push(act);
+      } 
+      else if (time > todayMidnight && time <= inFiveDaysMidnight) {
+        // Agora as atividades dos próximos 5 dias entram no radar!
+        radar.push({ title: act.title, endTime: time, isActivity: true });
+      }
     });
 
     // Analisa Metas
@@ -113,11 +114,9 @@ export async function GET(request) {
       const faltam = g.target_amount - g.current_amount;
 
       if (g.goal_type === 'single' && deadline && deadline < todayMidnight) {
-        // Alvos Únicos passados da data não resetam: viram Atrasos Reais
         atrasos.push({ title: g.title, type: 'goal' });
       } 
       else if (faltam > 0 && deadline && deadline >= todayMidnight && deadline <= inFiveDaysMidnight) {
-        // Entra no radar de cobrança proativa (5 dias)
         radar.push({ title: g.title, faltam, endTime: deadline, isWeekly: g.routine_type === 'weekly' });
       }
     });
@@ -129,30 +128,34 @@ export async function GET(request) {
     let corpo = '';
 
     if (atrasos.length > 0) {
-      // PRIORIDADE 1: Atrasos (Gargalos)
       titulo = '🚨 Alerta de Gargalo!';
       corpo = `Patrão, você tem ${atrasos.length} pendência(s) acumulada(s). Foco total em: "${atrasos[0].title}". Vamos limpar isso hoje?`;
     } 
     else if (radar.length > 0) {
-      // PRIORIDADE 2: Radar Proativo (Cobrança de Gap)
       radar.sort((a, b) => a.endTime - b.endTime);
-      const dias = Math.round((radar[0].endTime - todayMidnight) / (1000 * 60 * 60 * 24));
+      const item = radar[0];
+      const dias = Math.round((item.endTime - todayMidnight) / (1000 * 60 * 60 * 24));
       
       titulo = '⏳ Radar de Prazos';
-      const tempoMsg = radar[0].isWeekly 
-        ? (dias === 0 ? 'HOJE (Sexta-feira)!' : `em ${dias} dia(s), na Sexta.`)
-        : (dias === 0 ? 'HOJE!' : `em ${dias} dia(s).`);
+      
+      // === CORREÇÃO AQUI: Fala diferente se for Tarefa da Agenda ou Meta ===
+      if (item.isActivity) {
+        const tempoMsg = dias === 1 ? 'AMANHÃ' : `daqui a ${dias} dias`;
+        corpo = `A atividade "${item.title}" está marcada para ${tempoMsg}. Antecipe-se!`;
+      } else {
+        const tempoMsg = item.isWeekly 
+          ? (dias === 0 ? 'HOJE (Sexta-feira)!' : `em ${dias} dia(s), na Sexta.`)
+          : (dias === 0 ? 'HOJE!' : `em ${dias} dia(s).`);
+        corpo = `A meta "${item.title}" expira ${tempoMsg} Ainda restam ${item.faltam} unidades. Não deixe acumular!`;
+      }
 
-      corpo = `A meta "${radar[0].title}" expira ${tempoMsg} Ainda restam ${radar[0].faltam} unidades. Não deixe acumular!`;
       if (hoje.length > 0) corpo += ` (Lembrando: você tem ${hoje.length} tarefas hoje).`;
     } 
     else if (hoje.length > 0) {
-      // PRIORIDADE 3: Foco Diário
       titulo = '⚡ Foco do Dia';
       corpo = `Você tem ${hoje.length} compromisso(s) na agenda hoje. Começando por: "${hoje[0].title}".`;
     } 
     else {
-      // ESTADO DE PAZ
       titulo = '🛡️ Tudo sob Controle';
       corpo = 'Nenhum atraso ou meta urgente detectada para os próximos 5 dias. Ótimo momento para prospectar ou planejar.';
     }
