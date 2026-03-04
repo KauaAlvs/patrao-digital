@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
-import PageLoader from '../components/PageLoader'; // <-- NOVO LOADER PREMIUM AQUI
+import PageLoader from '../components/PageLoader';
 
 const swalDark = Swal.mixin({
   background: '#1e1e1e', color: '#ffffff', confirmButtonColor: '#0070f3', cancelButtonColor: '#444',
@@ -17,6 +17,9 @@ export default function Dashboard() {
   const [overdueItems, setOverdueItems] = useState([]);
   const [managingItem, setManagingItem] = useState(null);
   const [greeting, setGreeting] = useState('Olá, Patrão!');
+  
+  // Estado Financeiro Global para o Cockpit
+  const [finances, setFinances] = useState({ saldoLivre: 0, dreamProgress: 0, dreamTitle: 'Meu Sonho', allSavings: 0 });
 
   useEffect(() => {
     fetchData();
@@ -60,11 +63,38 @@ export default function Dashboard() {
   async function fetchData() {
     setLoading(true);
 
+    // 1. Busca Dados de Produtividade (Agenda/Metas)
     const { data: actData } = await supabase.from('activities').select(`*, contexts ( name, color_hex, type, logo_url )`).order('scheduled_for', { ascending: true });
     const { data: goalsData } = await supabase.from('goals').select(`*, contexts ( name, color_hex, type, logo_url )`).in('status', ['in_progress', 'completed']);
 
+    // 2. Busca Dados Financeiros (Cockpit Global)
     const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
 
+    const [transRes, fixedRes, settingsRes, savingsRes] = await Promise.all([
+      supabase.from('transactions').select('*').gte('due_date', firstDay).lte('due_date', lastDay),
+      supabase.from('fixed_expenses').select('*'),
+      supabase.from('financial_settings').select('*').eq('id', 1).single(),
+      supabase.from('transactions').select('amount').eq('type', 'savings')
+    ]);
+
+    // 3. Processa Finanças
+    const trans = transRes.data || [];
+    const sett = settingsRes.data || { base_salary: 0, dream_goal: 1, dream_title: 'Meu Sonho' };
+    
+    const extraIncome = trans.filter(t => t.type === 'income').reduce((acc, curr) => acc + Number(curr.amount), 0);
+    const varExpense = trans.filter(t => t.type === 'expense').reduce((acc, curr) => acc + Number(curr.amount), 0);
+    const monthSavings = trans.filter(t => t.type === 'savings').reduce((acc, curr) => acc + Number(curr.amount), 0);
+    const fixedExpense = (fixedRes.data || []).reduce((acc, curr) => acc + Number(curr.amount), 0);
+
+    const saldoLivre = (Number(sett.base_salary) + extraIncome) - (varExpense + fixedExpense + monthSavings);
+    const totalSavings = (savingsRes.data || []).reduce((acc, curr) => acc + Number(curr.amount), 0);
+    const dreamProgress = Math.min((totalSavings / Number(sett.dream_goal)) * 100, 100) || 0;
+
+    setFinances({ saldoLivre, dreamProgress, dreamTitle: sett.dream_title, allSavings: totalSavings });
+
+    // 4. Processa Produtividade
     const processedGoals = (goalsData || []).map(g => ({
       ...g, itemType: 'goal', referenceDate: getSmartDeadline(g), isCompleted: g.status === 'completed'
     }));
@@ -86,7 +116,8 @@ export default function Dashboard() {
     setOverdueItems(overdue);
     setActivities(processedActivities);
     setGoals(processedGoals);
-    setLoading(false);
+    
+    setTimeout(() => setLoading(false), 300); // Suaviza a transição do loader
   }
 
   async function handleCompleteItem(item) {
@@ -102,6 +133,8 @@ export default function Dashboard() {
     setManagingItem(null);
     fetchData();
   }
+
+  const formatCurrency = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
   const now = new Date();
   const endOfToday = new Date(now).setHours(23,59,59,999);
@@ -149,9 +182,6 @@ export default function Dashboard() {
     );
   };
 
-  // =======================================================
-  // INOVAÇÃO: BLOCO DE CARREGAMENTO PREMIUM COM ANIMAÇÃO
-  // =======================================================
   if (loading) return <PageLoader text="Sincronizando seu QG..." icon="🌍" />;
 
   return (
@@ -164,8 +194,7 @@ export default function Dashboard() {
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 75, 75, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 75, 75, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 75, 75, 0); } }
 
         @media (max-width: 768px) {
-          .dash-stats-grid { grid-template-columns: 1fr 1fr !important; }
-          .dash-stat-card.full-width { grid-column: span 2; }
+          .dash-stats-grid { grid-template-columns: 1fr !important; }
           .action-card { padding: 1rem; }
         }
       `}</style>
@@ -175,26 +204,46 @@ export default function Dashboard() {
         <p style={{ margin: 0, color: '#0070f3', fontWeight: 'bold', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
           {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
-        <h1 style={{ margin: 0, fontSize: '2.2rem', color: '#fff' }}>{greeting}</h1>
+        <h1 style={{ margin: 0, fontSize: '2.2rem', color: '#fff', letterSpacing: '-1px' }}>{greeting}</h1>
         <p style={{ margin: 0, color: '#888', fontSize: '1rem' }}>Aqui está o resumo do seu QG hoje.</p>
       </div>
 
-      {/* CARDS DE RESUMO (SNAPSHOTS) */}
-      <div className="dash-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '2.5rem' }}>
-        <div className="dash-stat-card" style={{ backgroundColor: '#181818', padding: '1.5rem', borderRadius: '16px', border: '1px solid #333' }}>
-          <p style={{ margin: '0 0 0.5rem 0', color: '#888', fontSize: '0.85rem', textTransform: 'uppercase' }}>Foco de Hoje</p>
-          <h2 style={{ margin: 0, color: '#fff', fontSize: '2rem' }}>{todayItems.length}</h2>
+      {/* NOVO COCKPIT GLOBAL: Integração Finanças + Produtividade */}
+      <div className="dash-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '2.5rem' }}>
+        
+        <div style={{ backgroundColor: '#181818', padding: '1.5rem', borderRadius: '16px', border: '1px solid #333', borderLeft: '4px solid #fff' }}>
+          <p style={{ margin: '0 0 0.5rem 0', color: '#888', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: 'bold' }}>⚡ Foco de Hoje</p>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+            <h2 style={{ margin: 0, color: '#fff', fontSize: '2rem' }}>{todayItems.length}</h2>
+            <span style={{ color: '#555', fontSize: '0.9rem' }}>tarefas</span>
+          </div>
         </div>
-        <div className="dash-stat-card" style={{ backgroundColor: '#181818', padding: '1.5rem', borderRadius: '16px', border: '1px solid #333' }}>
-          <p style={{ margin: '0 0 0.5rem 0', color: '#888', fontSize: '0.85rem', textTransform: 'uppercase' }}>Metas Ativas</p>
-          <h2 style={{ margin: 0, color: '#eab308', fontSize: '2rem' }}>{goals.filter(g => !g.isCompleted).length}</h2>
+
+        <div style={{ backgroundColor: '#181818', padding: '1.5rem', borderRadius: '16px', border: '1px solid #333', borderLeft: `4px solid ${finances.saldoLivre >= 0 ? '#0070f3' : '#ff4d4f'}` }}>
+          <p style={{ margin: '0 0 0.5rem 0', color: '#888', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: 'bold' }}>💸 Saldo Livre Mês</p>
+          <h2 style={{ margin: 0, color: finances.saldoLivre >= 0 ? '#0070f3' : '#ff4d4f', fontSize: '1.8rem', whiteSpace: 'nowrap' }}>
+            {formatCurrency(finances.saldoLivre)}
+          </h2>
         </div>
-        <div className={`dash-stat-card ${overdueItems.length > 0 ? 'full-width pulse-alert' : ''}`} style={{ backgroundColor: overdueItems.length > 0 ? 'rgba(255, 75, 75, 0.1)' : '#181818', padding: '1.5rem', borderRadius: '16px', border: `1px solid ${overdueItems.length > 0 ? '#ff4b4b' : '#333'}` }}>
-          <p style={{ margin: '0 0 0.5rem 0', color: overdueItems.length > 0 ? '#ff4b4b' : '#888', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: overdueItems.length > 0 ? 'bold' : 'normal' }}>Pendências Atrasadas</p>
-          <h2 style={{ margin: 0, color: overdueItems.length > 0 ? '#ff4b4b' : '#fff', fontSize: '2rem' }}>{overdueItems.length}</h2>
+
+        <div style={{ backgroundColor: '#181818', padding: '1.5rem', borderRadius: '16px', border: '1px solid #333', borderLeft: '4px solid #eab308' }}>
+          <p style={{ margin: '0 0 0.5rem 0', color: '#888', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: 'bold' }}>🎯 {finances.dreamTitle}</p>
+          <h2 style={{ margin: 0, color: '#eab308', fontSize: '1.8rem' }}>{finances.dreamProgress.toFixed(0)}%</h2>
+          <div style={{ width: '100%', height: '4px', backgroundColor: '#333', borderRadius: '4px', marginTop: '0.8rem', overflow: 'hidden' }}>
+            <div style={{ width: `${finances.dreamProgress}%`, backgroundColor: '#eab308', height: '100%', borderRadius: '4px' }}></div>
+          </div>
+        </div>
+
+        <div className={overdueItems.length > 0 ? 'pulse-alert' : ''} style={{ backgroundColor: overdueItems.length > 0 ? 'rgba(255, 75, 75, 0.1)' : '#181818', padding: '1.5rem', borderRadius: '16px', border: `1px solid ${overdueItems.length > 0 ? '#ff4b4b' : '#333'}`, borderLeft: `4px solid ${overdueItems.length > 0 ? '#ff4b4b' : '#333'}` }}>
+          <p style={{ margin: '0 0 0.5rem 0', color: overdueItems.length > 0 ? '#ff4b4b' : '#888', fontSize: '0.85rem', textTransform: 'uppercase', fontWeight: 'bold' }}>🚨 Atrasos</p>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+            <h2 style={{ margin: 0, color: overdueItems.length > 0 ? '#ff4b4b' : '#fff', fontSize: '2rem' }}>{overdueItems.length}</h2>
+            <span style={{ color: overdueItems.length > 0 ? '#ff4b4b' : '#555', fontSize: '0.9rem' }}>pendências</span>
+          </div>
         </div>
       </div>
 
+      {/* RESTANTE DO DASHBOARD: Listas de Tarefas */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
         
         {/* COLUNA: FOCO DE HOJE E ATRASADOS */}

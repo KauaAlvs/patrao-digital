@@ -48,14 +48,11 @@ export default function Sidebar() {
     }
 
     // === SISTEMA DE HISTÓRICO DE NOTIFICAÇÕES (LOCALSTORAGE + FIREBASE SW) ===
-    // 1. Carrega o histórico salvo no dispositivo
     const savedNotifs = JSON.parse(localStorage.getItem('patrao_notifications') || '[]');
     setNotificationsList(savedNotifs);
 
-    // 2. Escuta novas notificações chegando com o app aberto
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', (event) => {
-        // Verifica se a mensagem veio do Firebase FCM
         if (event.data && event.data.notification) {
           const newNotif = {
             title: event.data.notification.title,
@@ -64,7 +61,7 @@ export default function Sidebar() {
           };
           
           setNotificationsList(prevList => {
-            const updatedList = [newNotif, ...prevList].slice(0, 20); // Mantém apenas as últimas 20
+            const updatedList = [newNotif, ...prevList].slice(0, 20); 
             localStorage.setItem('patrao_notifications', JSON.stringify(updatedList));
             return updatedList;
           });
@@ -168,9 +165,13 @@ export default function Sidebar() {
     return 'Configurar';
   };
 
+  // === MENU ATUALIZADO (6 itens) ===
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: '🏠' }, { name: 'Agenda', path: '/agenda', icon: '📅' },
-    { name: 'Metas', path: '/metas', icon: '🎯' }, { name: 'Empresas', path: '/corporativo', icon: '🏢' },
+    { name: 'Home', path: '/', icon: '🏠' }, 
+    { name: 'Agenda', path: '/agenda', icon: '📅' },
+    { name: 'Metas', path: '/metas', icon: '🎯' }, 
+    { name: 'Finanças', path: '/financeiro', icon: '💰' },
+    { name: 'Corporativo', path: '/corporativo', icon: '🏢' },
     { name: 'Notas', path: '/notas', icon: '📝' }
   ];
 
@@ -238,15 +239,15 @@ export default function Sidebar() {
             position: fixed; bottom: 0; left: 0; padding: 0;
             border-right: none; border-top: 1px solid #222;
             background-color: rgba(18, 18, 18, 0.98); backdrop-filter: blur(10px);
-            align-items: center; justify-content: space-around;
+            align-items: center; justify-content: space-between;
             padding-bottom: env(safe-area-inset-bottom);
           }
           .collapse-btn, .logo-box, .footer-box, .push-action-btn { display: none; }
-          .nav-menu { flex-direction: row; justify-content: space-around; width: 100%; align-items: center; padding: 0 0.5rem; }
-          .nav-link { flex-direction: column; gap: 0.3rem; padding: 0.5rem; border: none !important; min-width: 60px; justify-content: center; }
+          .nav-menu { flex-direction: row; justify-content: space-around; width: 100%; align-items: center; padding: 0; }
+          .nav-link { flex-direction: column; gap: 0.2rem; padding: 0.3rem; border: none !important; min-width: 50px; justify-content: center; }
           .nav-link.active { background-color: transparent; color: #0070f3; }
-          .nav-icon { font-size: 1.4rem; color: inherit; }
-          .nav-text { display: block; font-size: 0.6rem; font-weight: bold; margin: 0; }
+          .nav-icon { font-size: 1.2rem; color: inherit; }
+          .nav-text { display: block; font-size: 0.55rem; font-weight: bold; margin: 0; }
 
           .fab-container { position: fixed; bottom: 95px; right: 20px; margin: 0; z-index: 1000; }
           .fab-button { width: 60px; height: 60px; box-shadow: 0 8px 25px rgba(0, 112, 243, 0.6); }
